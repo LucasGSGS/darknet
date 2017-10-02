@@ -46,6 +46,19 @@ void yuv_to_rgb(image im);
 void rgb_to_yuv(image im);
 
 
+
+
+// our functions:
+void label_paired_detection(image im, float x, float y, float w, float h);
+int compare_frame(float x1, float y1, float w1, float h1,
+                   float x2, float y2, float w2, float h2);
+float calculate_speed(float currx, float curry, float prevx, float prevy);
+float calculate_direction(float currx, float curry, float prevx, float prevy);
+
+
+
+
+
 image collapse_image_layers(image source, int border);
 image collapse_images_horz(image *ims, int n);
 image collapse_images_vert(image *ims, int n);
@@ -69,4 +82,3 @@ float bilinear_interpolate(image im, float x, float y, int c);
 image get_image_layer(image m, int l);
 
 #endif
-

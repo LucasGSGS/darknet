@@ -1,3 +1,5 @@
+#include <stdio.h>
+#include "list.h"
 #include "darknet.h"
 
 static int coco_ids[] = {1,2,3,4,5,6,7,8,9,10,11,13,14,15,16,17,18,19,20,21,22,23,24,25,27,28,31,32,33,34,35,36,37,38,39,40,41,42,43,44,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,67,70,72,73,74,75,76,77,78,79,80,81,82,84,85,86,87,88,89,90};
@@ -23,7 +25,6 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
         cuda_set_device(gpus[i]);
 #endif
         nets[i] = load_network(cfgfile, weightfile, clear);
-        nets[i].learning_rate *= ngpus;
     }
     srand(time(0));
     network net = nets[0];
@@ -41,8 +42,9 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
     //int N = plist->size;
     char **paths = (char **)list_to_array(plist);
 
-    load_args args = get_base_args(net);
-    args.coords = l.coords;
+    load_args args = {0};
+    args.w = net.w;
+    args.h = net.h;
     args.paths = paths;
     args.n = imgs;
     args.m = plist->size;
@@ -51,8 +53,12 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
     args.num_boxes = l.max_boxes;
     args.d = &buffer;
     args.type = DETECTION_DATA;
-    //args.type = INSTANCE_DATA;
     args.threads = 8;
+
+    args.angle = net.angle;
+    args.exposure = net.exposure;
+    args.saturation = net.saturation;
+    args.hue = net.hue;
 
     pthread_t load_thread = load_data(args);
     clock_t time;
@@ -97,7 +103,7 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
             image im = float_to_image(net.w, net.h, 3, train.X.vals[zz]);
             int k;
             for(k = 0; k < l.max_boxes; ++k){
-                box b = float_to_box(train.y.vals[zz] + k*5, 1);
+                box b = float_to_box(train.y.vals[zz] + k*5);
                 printf("%f %f %f %f\n", b.x, b.y, b.w, b.h);
                 draw_bbox(im, b, 1, 1,0,0);
             }
@@ -124,8 +130,8 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
         avg_loss = avg_loss*.9 + loss*.1;
 
         i = get_current_batch(net);
-        printf("%ld: %f, %f avg, %f rate, %lf seconds, %d images\n", get_current_batch(net), loss, avg_loss, get_current_rate(net), sec(clock()-time), i*imgs);
-        if(i%100==0){
+        printf("%zu: %f, %f avg, %f rate, %lf seconds, %d images\n", get_current_batch(net), loss, avg_loss, get_current_rate(net), sec(clock()-time), i*imgs);
+        if(i%1000==0){
 #ifdef GPU
             if(ngpus != 1) sync_nets(nets, ngpus, 0);
 #endif
@@ -337,7 +343,7 @@ void validate_detector_flip(char *datacfg, char *cfgfile, char *weightfile, char
             network_predict(net, input.data);
             int w = val[t].w;
             int h = val[t].h;
-            get_region_boxes(l, w, h, net.w, net.h, thresh, probs, boxes, 0, 0, map, .5, 0);
+            get_region_boxes(l, w, h, net.w, net.h, thresh, probs, boxes, 0, map, .5, 0);
             if (nms) do_nms_sort(boxes, probs, l.w*l.h*l.n, classes, nms);
             if (coco){
                 print_cocos(fp, path, boxes, probs, l.w*l.h*l.n, classes, w, h);
@@ -355,7 +361,7 @@ void validate_detector_flip(char *datacfg, char *cfgfile, char *weightfile, char
         if(fps) fclose(fps[j]);
     }
     if(coco){
-        fseek(fp, -2, SEEK_CUR); 
+        fseek(fp, -2, SEEK_CUR);
         fprintf(fp, "\n]\n");
         fclose(fp);
     }
@@ -468,7 +474,7 @@ void validate_detector(char *datacfg, char *cfgfile, char *weightfile, char *out
             network_predict(net, X);
             int w = val[t].w;
             int h = val[t].h;
-            get_region_boxes(l, w, h, net.w, net.h, thresh, probs, boxes, 0, 0, map, .5, 0);
+            get_region_boxes(l, w, h, net.w, net.h, thresh, probs, boxes, 0, map, .5, 0);
             if (nms) do_nms_sort(boxes, probs, l.w*l.h*l.n, classes, nms);
             if (coco){
                 print_cocos(fp, path, boxes, probs, l.w*l.h*l.n, classes, w, h);
@@ -486,7 +492,7 @@ void validate_detector(char *datacfg, char *cfgfile, char *weightfile, char *out
         if(fps) fclose(fps[j]);
     }
     if(coco){
-        fseek(fp, -2, SEEK_CUR); 
+        fseek(fp, -2, SEEK_CUR);
         fprintf(fp, "\n]\n");
         fclose(fp);
     }
@@ -532,7 +538,7 @@ void validate_detector_recall(char *cfgfile, char *weightfile)
         image sized = resize_image(orig, net.w, net.h);
         char *id = basecfg(path);
         network_predict(net, sized.data);
-        get_region_boxes(l, sized.w, sized.h, net.w, net.h, thresh, probs, boxes, 0, 1, 0, .5, 1);
+        get_region_boxes(l, sized.w, sized.h, net.w, net.h, thresh, probs, boxes, 1, 0, .5, 1);
         if (nms) do_nms(boxes, probs, l.w*l.h*l.n, 1, nms);
 
         char labelpath[4096];
@@ -584,12 +590,30 @@ void test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filenam
     }
     set_batch_network(&net, 1);
     srand(2222222);
-    double time;
+    clock_t time;
     char buff[256];
     char *input = buff;
     int j;
-    float nms=.3;
-    while(1){
+    float nms=.4;
+    //construct a frame object that represents frames in the video
+    typedef struct{
+      image im;
+      float x;
+      float y;
+      float w;
+      float h;
+    } frame;
+    frame curr;
+    frame prev;
+    image resized_prev;
+    image resized_curr;
+    float speed;
+    float direction;
+
+    //the threshold to judge whether two images have the same object
+    float threshold_norm = 100.0;
+    int compare = 0;
+    while (1){
         if(filename){
             strncpy(input, filename, 256);
         } else {
@@ -601,36 +625,103 @@ void test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filenam
         }
         image im = load_image_color(input,0,0);
         image sized = letterbox_image(im, net.w, net.h);
+        //comparing previous frame and current frame
+
         //image sized = resize_image(im, net.w, net.h);
         //image sized2 = resize_max(im, net.w);
         //image sized = crop_image(sized2, -((net.w - sized2.w)/2), -((net.h - sized2.h)/2), net.w, net.h);
         //resize_network(&net, sized.w, sized.h);
         layer l = net.layers[net.n-1];
 
+        // **********************************
+        // Where we can read off a list of objects detected in a frame
         box *boxes = calloc(l.w*l.h*l.n, sizeof(box));
+        // **********************************
+
         float **probs = calloc(l.w*l.h*l.n, sizeof(float *));
         for(j = 0; j < l.w*l.h*l.n; ++j) probs[j] = calloc(l.classes + 1, sizeof(float *));
-        float **masks = 0;
-        if (l.coords > 4){
-            masks = calloc(l.w*l.h*l.n, sizeof(float*));
-            for(j = 0; j < l.w*l.h*l.n; ++j) masks[j] = calloc(l.coords-4, sizeof(float *));
-        }
 
         float *X = sized.data;
-        time=what_time_is_it_now();
+        time=clock();
         network_predict(net, X);
-        printf("%s: Predicted in %f seconds.\n", input, what_time_is_it_now()-time);
-        get_region_boxes(l, im.w, im.h, net.w, net.h, thresh, probs, boxes, masks, 0, 0, hier_thresh, 1);
+        printf("%s: Predicted in %f seconds.\n", input, sec(clock()-time));
+        get_region_boxes(l, im.w, im.h, net.w, net.h, thresh, probs, boxes, 0, 0, hier_thresh, 1);
         if (nms) do_nms_obj(boxes, probs, l.w*l.h*l.n, l.classes, nms);
         //else if (nms) do_nms_sort(boxes, probs, l.w*l.h*l.n, l.classes, nms);
-        draw_detections(im, l.w*l.h*l.n, thresh, boxes, probs, masks, names, alphabet, l.classes);
+        draw_detections(im, l.w*l.h*l.n, thresh, boxes, probs, names, alphabet, l.classes);
+
+        if (compare == 0){
+
+          //initializing the current image; previous image is still NULL
+          compare = 1;
+          curr.im = im;
+          curr.x = boxes[0].x;
+          curr.y = boxes[0].y;
+          curr.w = boxes[0].w;
+          curr.h = boxes[0].h;
+        }
+        else {
+
+          //set previous image and coordinates, updating the current image
+          prev.im = curr.im;
+          prev.x = curr.x;
+          prev.y = curr.y;
+          prev.w = curr.w;
+          prev.h = curr.h;
+          curr.im = im;
+
+          // We'll use the resized and cropped images to compare / validate the more simple comparisons later:
+          resized_prev = crop_image(prev.im, prev.x, prev.y, prev.w, prev.h);
+
+
+          //check whether we find the same object in the next frame
+          int found = 0;
+          int i;
+          for (i = 0 ; i < l.w*l.h*l.n; i++) {
+
+              // We'll use the resized and cropped images to compare / validate the more simple comparisons later:
+              resized_curr = crop_image(curr.im, boxes[i].x, boxes[i].y, boxes[i].w, boxes[i].h);
+              resized_curr = resize_image(resized_curr, prev.w, prev.h);
+
+              curr.x = boxes[i].x;
+              curr.y = boxes[i].y;
+              curr.w = boxes[i].w;
+              curr.h = boxes[i].h;
+
+              if (compare_frame(prev.x, prev.y, prev.w, prev.h,
+                                curr.x, curr.y, curr.w, curr.h)) {
+
+                  // if we get the same detection here, we should do something with it (calc speed, update list, etc.)
+                  label_paired_detection(curr.im, curr.x, curr.y, curr.w, curr.h);
+
+                  found = 1;
+                  break;
+              }
+          }
+
+          if (found == 0){
+            curr.x = boxes[0].x;
+            curr.y = boxes[0].y;
+            curr.w = boxes[0].w;
+            curr.h = boxes[0].h;
+            speed = -1;
+            direction = -1;
+          }
+          else {
+            speed = calculate_speed(curr.x, curr.y, prev.x, prev.y);
+            direction = calculate_direction(curr.x, curr.y, prev.x, prev.y);
+
+          }
+        }
+        //If we find the object, then we calculate its speed and direction
+
         if(outfile){
             save_image(im, outfile);
         }
         else{
             save_image(im, "predictions");
 #ifdef OPENCV
-            cvNamedWindow("predictions", CV_WINDOW_NORMAL); 
+            cvNamedWindow("predictions", CV_WINDOW_NORMAL);
             if(fullscreen){
                 cvSetWindowProperty("predictions", CV_WND_PROP_FULLSCREEN, CV_WINDOW_FULLSCREEN);
             }

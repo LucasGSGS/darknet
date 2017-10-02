@@ -77,7 +77,6 @@ void gemm_nn(int M, int N, int K, float ALPHA,
         float *C, int ldc)
 {
     int i,j,k;
-    #pragma omp parallel for
     for(i = 0; i < M; ++i){
         for(k = 0; k < K; ++k){
             register float A_PART = ALPHA*A[i*lda+k];
@@ -94,7 +93,6 @@ void gemm_nt(int M, int N, int K, float ALPHA,
         float *C, int ldc)
 {
     int i,j,k;
-    #pragma omp parallel for
     for(i = 0; i < M; ++i){
         for(j = 0; j < N; ++j){
             register float sum = 0;
@@ -112,7 +110,6 @@ void gemm_tn(int M, int N, int K, float ALPHA,
         float *C, int ldc)
 {
     int i,j,k;
-    #pragma omp parallel for
     for(i = 0; i < M; ++i){
         for(k = 0; k < K; ++k){
             register float A_PART = ALPHA*A[k*lda+i];
@@ -129,7 +126,6 @@ void gemm_tt(int M, int N, int K, float ALPHA,
         float *C, int ldc)
 {
     int i,j,k;
-    #pragma omp parallel for
     for(i = 0; i < M; ++i){
         for(j = 0; j < N; ++j){
             register float sum = 0;
@@ -176,9 +172,9 @@ void gemm_gpu(int TA, int TB, int M, int N, int K, float ALPHA,
         float *C_gpu, int ldc)
 {
     cublasHandle_t handle = blas_handle();
-    cudaError_t status = cublasSgemm(handle, (TB ? CUBLAS_OP_T : CUBLAS_OP_N), 
+    cublasStatus_t status = cublasSgemm(handle, (TB ? CUBLAS_OP_T : CUBLAS_OP_N),
             (TA ? CUBLAS_OP_T : CUBLAS_OP_N), N, M, K, &ALPHA, B_gpu, ldb, A_gpu, lda, &BETA, C_gpu, ldc);
-    check_error(status);
+    check_status(status);
 }
 
 #include <stdio.h>

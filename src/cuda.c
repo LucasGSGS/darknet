@@ -23,32 +23,65 @@ int cuda_get_device()
     check_error(status);
     return n;
 }
++static const char *_cublasGetStatusEnum(cublasStatus_t error)
+ {
+     switch (error)
+     {
+         case CUBLAS_STATUS_SUCCESS:
+             return "CUBLAS_STATUS_SUCCESS";
 
-void check_error(cudaError_t status)
-{
-    //cudaDeviceSynchronize();
-    cudaError_t status2 = cudaGetLastError();
-    if (status != cudaSuccess)
-    {   
-        const char *s = cudaGetErrorString(status);
-        char buffer[256];
-        printf("CUDA Error: %s\n", s);
-        assert(0);
-        snprintf(buffer, 256, "CUDA Error: %s", s);
-        error(buffer);
-    } 
-    if (status2 != cudaSuccess)
-    {   
-        const char *s = cudaGetErrorString(status);
-        char buffer[256];
-        printf("CUDA Error Prev: %s\n", s);
-        assert(0);
-        snprintf(buffer, 256, "CUDA Error Prev: %s", s);
-        error(buffer);
-    } 
-}
+         case CUBLAS_STATUS_NOT_INITIALIZED:
+             return "CUBLAS_STATUS_NOT_INITIALIZED";
 
-dim3 cuda_gridsize(size_t n){
+         case CUBLAS_STATUS_ALLOC_FAILED:
+             return "CUBLAS_STATUS_ALLOC_FAILED";
+
+         case CUBLAS_STATUS_INVALID_VALUE:
+             return "CUBLAS_STATUS_INVALID_VALUE";
+
+         case CUBLAS_STATUS_ARCH_MISMATCH:
+             return "CUBLAS_STATUS_ARCH_MISMATCH";
+
+         case CUBLAS_STATUS_MAPPING_ERROR:
+             return "CUBLAS_STATUS_MAPPING_ERROR";
+
+         case CUBLAS_STATUS_EXECUTION_FAILED:
+             return "CUBLAS_STATUS_EXECUTION_FAILED";
+
+         case CUBLAS_STATUS_INTERNAL_ERROR:
+             return "CUBLAS_STATUS_INTERNAL_ERROR";
+
+         case CUBLAS_STATUS_NOT_SUPPORTED:
+             return "CUBLAS_STATUS_NOT_SUPPORTED";
+
+         case CUBLAS_STATUS_LICENSE_ERROR:
+             return "CUBLAS_STATUS_LICENSE_ERROR";
+     }
+
+     return "<unknown>";
+ }
+
+  void check_error(cudaError_t status)
+  {
+      //cudaDeviceSynchronize();
+ @@ -48,6 + 86,19 @@ void check_error(cudaError_t status)
+      }
+  }
+
+ void check_status(cublasStatus_t status)
+ {
+     if (status != CUBLAS_STATUS_SUCCESS)
+     {
+         const char *s = _cublasGetStatusEnum(status);
+         char buffer[256];
+         printf("CUDA BLAS Error: %s\n", s);
+         assert(0);
+         snprintf(buffer, 256, "CUDA BLAS Error: %s", s);
+         error(buffer);
+     }
+ }
+
+  dim3 cuda_gridsize(size_t n){
     size_t k = (n-1) / BLOCK + 1;
     size_t x = k;
     size_t y = 1;

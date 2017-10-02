@@ -223,46 +223,6 @@ image **load_alphabet()
 }
 
 
-void draw_line(image im, int x1, int y1, int x2, int y2, float r, float g, float b) {
-    float xDiff = x2-x1;
-    float yDiff = y2-y1;
-
-    float slope;
-    int iteration_flag; // 0 for x-major, 1 for y-major
-
-    if (fabs(xDiff) > fabs(yDiff)) {
-        slope = yDiff / xDiff;
-        iteration_flag = 0;
-    } else if (xDiff == 0) {
-        // avoids a divide by zero error
-        set_pixel(im, x1, y1, 0, r);
-        return;
-    } else {
-        slope = xDiff / yDiff;
-        iteration_flag = 1;
-    }
-
-
-
-    if (iteration_flag) {
-        for (int i = y1; i <y2; i++) {
-          draw_box_width(im, (int)(x1 + slope*(i-y1))-2, i-2, (int)(x1 + slope*(i-y1))+2, i+2, 2, r, g, b);
-            // set_pixel(im, (int)(x1 + slope*(i-y1)), i,0, r);
-        }
-    }
-    else {
-        for (int j = x1; j < x2; j++) {
-          draw_box_width(im, j-2, (int)(y1 + slope*(j-x1))-2, j+2, (int)(y1 + slope*(j-x1))+2, 2, r, g, b);
-            // set_pixel(im, j, (int) (y1 + slope*(j-x1)), 0, r);
-        }
-    }
-
-
-}
-
-
-
-
 void label_paired_detection(image im, float x, float y, float w, float h) {
     int x2 = (int)(x + w);
     int y2 = (int)(y + h);
@@ -302,55 +262,56 @@ float calculate_direction(float currx, float curry, float prevx, float prevy) {
 
 /**
 *
-* Function to take the outputs from the CNN and draw them on top of the image/current frame
-*
 * @param im the image we're drawing on
 * @param num the number of detections, NOT the number of detections to draw
 * @param thresh the specified threshold from which to display
-* @param alphabet an array of images of every letter in the alphabet
 *
 * the following are parallel arrays of:
 * @param boxes the boxes we may draw around the object
 * @param probs 2d array of floats, the probability a class is the one detected
 * @param names and the name of the object
-* @param classes the full list of classifiers the network detects
 *
+* an array of images of every letter
+* @param alphabet
+*
+* not sure what these are for...
+* @param classes
 */
 void draw_detections(image im, int num, float thresh, box *boxes, float **probs, char **names, image **alphabet, int classes)
 {
     // arbitrary maxes
     size_t MAX_OBJECTS = 50;
-    size_t MAX_OBJECT_NAME_LENGTH = 20;
+    size_t MAX_OBJECT_NAME_LENGTH = 23; // the length of our new longest detection name
 
     // Make this a list of object names that have been drawn, allocates memory, sets to zero
     char **drawn = calloc(sizeof(char*) * MAX_OBJECTS, 1);
     int di = 0;
 
     // the things we want to count, parallel arrays
-    int num_countables = 4;
+    // the things we want to count, parallel arrays
+    int num_countables = 1;
     char to_count[num_countables][MAX_OBJECT_NAME_LENGTH];
-    strcpy(to_count[0], "bicycle");
-    strcpy(to_count[1], "bus");
-    strcpy(to_count[2], "car");
-    strcpy(to_count[3], "person");
+    strcpy(to_count[0], "Cyclist-Wearing-Helmet");
+    //strcpy(to_count[1], "bus");
+    //strcpy(to_count[2], "car");
+    //strcpy(to_count[3], "person");
     int num_counted[num_countables];
     num_counted[0] = 0;
-    num_counted[1] = 0;
-    num_counted[2] = 0;
-    num_counted[3] = 0;
+    //num_counted[1] = 0;
+    //num_counted[2] = 0;
+    //num_counted[3] = 0;
 
 
     int i;
+    int count = 0;
     for(i = 0; i < num; ++i) {
         int object = max_index(probs[i], classes);
         float prob = probs[i][object];
-
         if(prob > thresh) {
 
             // add to list of drawn objects, print the current status of the program
             drawn[di++] = names[object];
-
-            // printf("%s: %.0f%%. The current number of objects is: %d\n", names[object], prob * 100, di);
+            printf("%s: %.0f%%. The current number of objects is: %d\n", names[object], prob * 100, di);
 
             int offset = object * 123457 % classes;
             float red = get_color(2, offset, classes);
@@ -376,13 +337,15 @@ void draw_detections(image im, int num, float thresh, box *boxes, float **probs,
             int width = im.h * .01;
 
 
-            // comparison to see if we need to blur something, only do so if the label is "person"
-            // if (strcmp(drawn[di - 1], "person") == 0) {
-            //     draw_box_blur(im, left, top, right, bot, width, red, green, blue);
-            // } else {
-                draw_box_width(im, left, top, right, bot, width, red, green, blue);
-                draw_box_width(im, b.x * im.w -3, b.y * im.h -3, b.x * im.w +3, b.y * im.h +3, 5, 0.5, 0.5, 0.5);
-            // }
+//          comparison to see if we need to blur something, only do so if the label is "person"
+//            if (strcmp(drawn[di - 1], "person") == 0) {
+//                draw_box_blur(im, left, top, right, bot, width, red, green, blue);
+//            } else {
+//                draw_box_width(im, left, top, right, bot, width, red, green, blue);
+//            }
+
+            // basic function call, not blurring out helmets accidentally
+            draw_box_width(im, left, top, right, bot, width, red, green, blue);
 
             // update how many of the objects we care about we have
             int j;
@@ -417,118 +380,35 @@ void draw_detections(image im, int num, float thresh, box *boxes, float **probs,
         free(str);
     }
 
+    // any operations on our list of drawn objects
+
     // free everything
     free(drawn);
 
 }
 
 
-void track(int num, float thresh, box *boxes, float **probs, int classes, float* movement, float* testsize, char** names, char **objectnames){
+void track(int num, float thresh, box *boxes, float **probs, int classes, float* movement){
   int count = 1;
   int count2 = 0;
-  for (int i = 0; i <num; i++){
+  int i;
+  for (i = 0; i <num; i++){
     int object = max_index(probs[i], classes);
     float prob = probs[i][object];
     if (prob > thresh) {
       movement[count]=boxes[i].x;
       movement[count+1]=boxes[i].y;
-      testsize[count]=boxes[i].w;
-      testsize[count+1]=boxes[i].h;
-      objectnames[count] = names[object];
+      printf("possible y_coordinates are %f\n", movement[count+1]);
       count = count+2;
       count2++;
-
     }
   }
+
   movement[0] = (float)(count2);
   // printf("the number of total objects is %i\n", count);
   // printf("the x_position of the first object is%f\n",movement[0]);
   // printf("the y_position of the first object is%f \n", movement[1]);
 }
-
-void trackperson(int num, float thresh, box *boxes, float **probs, int classes, float* movement, float* testsize, char** names, char **objectnames){
-  int count = 1;
-  int count2 = 0;
-  for (int i = 0; i <num; i++){
-    int object = max_index(probs[i], classes);
-    float prob = probs[i][object];
-    if (prob > thresh && strcmp(names[object], "person") == 0) {
-      movement[count]=boxes[i].x;
-      movement[count+1]=boxes[i].y;
-      testsize[count]=boxes[i].w;
-      testsize[count+1]=boxes[i].h;
-      objectnames[count] = names[object];
-      count = count+2;
-      count2++;
-    }
-  }
-  movement[0] = (float)(count2);
-  // printf("the number of total objects is %i\n", count);
-  // printf("the x_position of the first object is%f\n",movement[0]);
-  // printf("the y_position of the first object is%f \n", movement[1]);
-}
-
-
-//Kyle 7/6/2017
-void draw_tracers(image im, int dots, float *xcoords, float *ycoords, int lines, float *xlinecoords, float *ylinecoords) {
-    int i;
-    for (i = 0; i < dots; i ++) {
-        // always does pure red for now
-        draw_box_width(im, (int) (xcoords[i] * im.w) - 5, (int) (ycoords[i] * im.h) - 5, (int) (xcoords[i] * im.w) + 5,
-                       (int) (ycoords[i] * im.h) + 5, 5, 0.8, 0.8, 0.8);
-    }
-    for (i = 0; i < lines-1; i ++) {
-        // always does blue for now
-        draw_line(im, (int) (xlinecoords[i] * im.w), (int) (ylinecoords[i] * im.h), (int) (xlinecoords[i + 1] * im.w),
-                  (int) (ylinecoords[i + 1] * im.h), .1, .1, 1.);
-    }
-    printf("drawing \n");
-}
-
-
-
-float prediction(float* xcoords, int num){
-  float ret = 0.0;
-  float x;
-  float y;
-  for (int i = fmax(num - 7, 0); i < num-1; i++){
-    x = 1.0;
-    y = 1.0;
-    for (int j = fmax(num-7, 0); j < num-1; j++){
-      if (i != j){
-          x = x*(xcoords[num-1]-xcoords[j]);
-          y = y*(xcoords[i] - xcoords[j]);
-      }
-    }
-    ret = ret + x/y*xcoords[i+1];
-  }
-  return ret;
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -1510,42 +1390,6 @@ void saturate_image(image im, float sat)
     hsv_to_rgb(im);
     constrain_image(im);
 }
-
-
-
-float compare_image(image prev, image im, float prevx, float prevy, float prevw, float prevh, float currx, float curry, float currw, float currh){
-
-  float result = 0;
-  float diff1;
-  float diff2;
-  float diff3;
-  int px = (int)(prevx * prev.w);
-  int py = (int)(prevy * prev.h);
-  int pw = (int)(prevw * prev.w);
-  int ph = (int)(prevh * prev.h);
-  int cx = (int)(currx * im.w);
-  int cy = (int)(curry * im.h);
-  int cw = (int)(currw * im.w);
-  int ch = (int)(currh * im.h);
-  image past = crop_image(prev, px, py, pw, ph);
-  image now = crop_image(im, cx, cy, cw, ch);
-  past = resize_image(past, fmin(cw, pw), fmin(ch, ph));
-  now = resize_image(now, fmin(cw, pw), fmin(ch, ph));
-  for (int i = 0; i < fmin(pw, cw); i++){
-    for (int j = 0; j < fmin(ph ,ch); j++){
-      diff1 = get_pixel(past,i,j,0) - get_pixel(now, i,j, 0);
-      diff2 = get_pixel(past,i,j,1) - get_pixel(now, i,j, 1);
-      diff3 = get_pixel(past,i,j,2) - get_pixel(now, i,j, 2);
-      result = result + diff1*diff1 + diff2*diff2 + diff3*diff3;
-    }
-  }
-  result = result/(fmin(pw,cw)*fmin(ph,ch));
-  return result;
-
-}
-
-
-
 
 void hue_image(image im, float hue)
 {
