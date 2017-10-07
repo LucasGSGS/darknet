@@ -45,8 +45,7 @@ image mask_to_rgb(image mask)
     return im;
 }
 
-<<<<<<< HEAD
-=======
+
 static float get_pixel(image m, int x, int y, int c)
 {
     assert(x < m.w && y < m.h && c < m.c);
@@ -91,7 +90,7 @@ static float bilinear_interpolate(image im, float x, float y, int c)
     return val;
 }
 
->>>>>>> upstream/master
+
 
 void composite_image(image source, image dest, int dx, int dy)
 {
@@ -1647,7 +1646,6 @@ void saturate_exposure_image(image im, float sat, float exposure)
     constrain_image(im);
 }
 
-<<<<<<< HEAD
 float bilinear_interpolate(image im, float x, float y, int c)
 {
     int ix = (int) floorf(x);
@@ -1663,8 +1661,7 @@ float bilinear_interpolate(image im, float x, float y, int c)
     return val;
 }
 
-=======
->>>>>>> upstream/master
+
 image resize_image(image im, int w, int h)
 {
     image resized = make_image(w, h, im.c);
@@ -1814,7 +1811,7 @@ image get_image_layer(image m, int l)
     }
     return out;
 }
-<<<<<<< HEAD
+
 
 float get_pixel(image m, int x, int y, int c)
 {
@@ -1842,8 +1839,7 @@ void add_pixel(image m, int x, int y, int c, float val)
     m.data[c*m.h*m.w + y*m.w + x] += val;
 }
 
-=======
->>>>>>> upstream/master
+
 void print_image(image m)
 {
     int i, j, k;
