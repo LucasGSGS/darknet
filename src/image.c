@@ -45,6 +45,53 @@ image mask_to_rgb(image mask)
     return im;
 }
 
+<<<<<<< HEAD
+=======
+static float get_pixel(image m, int x, int y, int c)
+{
+    assert(x < m.w && y < m.h && c < m.c);
+    return m.data[c*m.h*m.w + y*m.w + x];
+}
+static float get_pixel_extend(image m, int x, int y, int c)
+{
+    if(x < 0 || x >= m.w || y < 0 || y >= m.h) return 0;
+    /*
+    if(x < 0) x = 0;
+    if(x >= m.w) x = m.w-1;
+    if(y < 0) y = 0;
+    if(y >= m.h) y = m.h-1;
+    */
+    if(c < 0 || c >= m.c) return 0;
+    return get_pixel(m, x, y, c);
+}
+static void set_pixel(image m, int x, int y, int c, float val)
+{
+    if (x < 0 || y < 0 || c < 0 || x >= m.w || y >= m.h || c >= m.c) return;
+    assert(x < m.w && y < m.h && c < m.c);
+    m.data[c*m.h*m.w + y*m.w + x] = val;
+}
+static void add_pixel(image m, int x, int y, int c, float val)
+{
+    assert(x < m.w && y < m.h && c < m.c);
+    m.data[c*m.h*m.w + y*m.w + x] += val;
+}
+
+static float bilinear_interpolate(image im, float x, float y, int c)
+{
+    int ix = (int) floorf(x);
+    int iy = (int) floorf(y);
+
+    float dx = x - ix;
+    float dy = y - iy;
+
+    float val = (1-dy) * (1-dx) * get_pixel_extend(im, ix, iy, c) + 
+        dy     * (1-dx) * get_pixel_extend(im, ix, iy+1, c) + 
+        (1-dy) *   dx   * get_pixel_extend(im, ix+1, iy, c) +
+        dy     *   dx   * get_pixel_extend(im, ix+1, iy+1, c);
+    return val;
+}
+
+>>>>>>> upstream/master
 
 void composite_image(image source, image dest, int dx, int dy)
 {
@@ -1600,6 +1647,7 @@ void saturate_exposure_image(image im, float sat, float exposure)
     constrain_image(im);
 }
 
+<<<<<<< HEAD
 float bilinear_interpolate(image im, float x, float y, int c)
 {
     int ix = (int) floorf(x);
@@ -1615,6 +1663,8 @@ float bilinear_interpolate(image im, float x, float y, int c)
     return val;
 }
 
+=======
+>>>>>>> upstream/master
 image resize_image(image im, int w, int h)
 {
     image resized = make_image(w, h, im.c);
@@ -1764,6 +1814,7 @@ image get_image_layer(image m, int l)
     }
     return out;
 }
+<<<<<<< HEAD
 
 float get_pixel(image m, int x, int y, int c)
 {
@@ -1791,6 +1842,8 @@ void add_pixel(image m, int x, int y, int c, float val)
     m.data[c*m.h*m.w + y*m.w + x] += val;
 }
 
+=======
+>>>>>>> upstream/master
 void print_image(image m)
 {
     int i, j, k;
