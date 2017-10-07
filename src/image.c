@@ -25,7 +25,6 @@ float get_color(int c, int x, int max)
     return r;
 }
 
-
 image mask_to_rgb(image mask)
 {
     int n = mask.c;
@@ -37,14 +36,13 @@ image mask_to_rgb(image mask)
         float green = get_color(1,offset,n);
         float blue = get_color(0,offset,n);
         for(i = 0; i < im.w*im.h; ++i){
-            im.data[i + 0*im.w*im.h] = mask.data[j*im.h*im.w + i]*red;
-            im.data[i + 1*im.w*im.h] = mask.data[j*im.h*im.w + i]*green;
-            im.data[i + 2*im.w*im.h] = mask.data[j*im.h*im.w + i]*blue;
+            im.data[i + 0*im.w*im.h] += mask.data[j*im.h*im.w + i]*red;
+            im.data[i + 1*im.w*im.h] += mask.data[j*im.h*im.w + i]*green;
+            im.data[i + 2*im.w*im.h] += mask.data[j*im.h*im.w + i]*blue;
         }
     }
     return im;
 }
-
 
 static float get_pixel(image m, int x, int y, int c)
 {
@@ -91,7 +89,6 @@ static float bilinear_interpolate(image im, float x, float y, int c)
 }
 
 
-
 void composite_image(image source, image dest, int dx, int dy)
 {
     int x,y,k;
@@ -105,7 +102,6 @@ void composite_image(image source, image dest, int dx, int dy)
         }
     }
 }
-
 
 image border_image(image a, int border)
 {
@@ -123,13 +119,12 @@ image border_image(image a, int border)
     return b;
 }
 
-
 image tile_images(image a, image b, int dx)
 {
     if(a.w == 0) return copy_image(b);
     image c = make_image(a.w + b.w + dx, (a.h > b.h) ? a.h : b.h, (a.c > b.c) ? a.c : b.c);
     fill_cpu(c.w*c.h*c.c, 1, c.data, 1);
-    embed_image(a, c, 0, 0);
+    embed_image(a, c, 0, 0); 
     composite_image(b, c, a.w + dx, 0);
     return c;
 }
@@ -203,34 +198,6 @@ void draw_box(image a, int x1, int y1, int x2, int y2, float r, float g, float b
     }
 }
 
-
-/**
- * Wrapper to draw_box_width(), additional functionality to blur out the top third of the image (draw over it for now)
- *
- * @param a the image to update
- * @param x1 first x coordinate
- * @param y1 first y coordinate
- * @param x2 second x coordinate
- * @param y2 second y coordinate
- * @param w width of the bounding box
- * @param r red
- * @param g green
- * @param b blue
- */
-void draw_box_blur(image a, int x1, int y1, int x2, int y2, int w, float r, float g, float b)
-{
-    draw_box_width(a, x1, y1, x2, y2, w, r, g, b);
-
-    // y3 is the updated place we want to draw until we hit, cover a third of the box
-    int y3 = (y2 - y1) / 3 + y1;
-
-    int i;
-    for(i = w; x1+i <= x2-i && y1+i <= y3-i; ++i){
-        draw_box(a, x1+i, y1+i, x2-i, y3-i, r, g, b);
-    }
-}
-
-
 void draw_box_width(image a, int x1, int y1, int x2, int y2, int w, float r, float g, float b)
 {
     int i;
@@ -268,318 +235,64 @@ image **load_alphabet()
     return alphabets;
 }
 
-
-void draw_line(image im, int x1, int y1, int x2, int y2, float r, float g, float b) {
-    float xDiff = x2-x1;
-    float yDiff = y2-y1;
-
-    float slope;
-    int iteration_flag; // 0 for x-major, 1 for y-major
-
-    if (fabs(xDiff) > fabs(yDiff)) {
-        slope = yDiff / xDiff;
-        iteration_flag = 0;
-    } else if (xDiff == 0) {
-        // avoids a divide by zero error
-        set_pixel(im, x1, y1, 0, r);
-        return;
-    } else {
-        slope = xDiff / yDiff;
-        iteration_flag = 1;
-    }
-
-
-
-    if (iteration_flag) {
-        for (int i = y1; i <y2; i++) {
-          draw_box_width(im, (int)(x1 + slope*(i-y1))-2, i-2, (int)(x1 + slope*(i-y1))+2, i+2, 2, r, g, b);
-            // set_pixel(im, (int)(x1 + slope*(i-y1)), i,0, r);
-        }
-    }
-    else {
-        for (int j = x1; j < x2; j++) {
-          draw_box_width(im, j-2, (int)(y1 + slope*(j-x1))-2, j+2, (int)(y1 + slope*(j-x1))+2, 2, r, g, b);
-            // set_pixel(im, j, (int) (y1 + slope*(j-x1)), 0, r);
-        }
-    }
-
-
-}
-
-
-
-
-void label_paired_detection(image im, float x, float y, float w, float h) {
-    int x2 = (int)(x + w);
-    int y2 = (int)(y + h);
-
-    // we'll just draw in blue to know when we've drawn over it, and a double width just to see if it's successful
-    draw_box_width(im, (int)x, (int)y, x2, y2, im.h*.02, 0.0, 0.0, 1.0);
-}
-
-
-int compare_frame(float x1, float y1, float w1, float h1
-  , float x2, float y2, float w2, float h2) {
-
-    // 10 is an arbitrary choice for threshold
-    int thresh = 10;
-    if (x1 - x2 < thresh && x1 - x2 > -thresh &&
-        y1 - y2 < thresh && y1 - y2 > -thresh &&
-        w1 - w2 < thresh && w1 - w2 > -thresh &&
-        h1 - h2 < thresh && h1 - h2 > -thresh) {
-        return 1;
-    } else {
-        return 0;
-    }
-}
-
-
-// to be implemented when we do regression
-float calculate_speed(float currx, float curry, float prevx, float prevy) {
-    return 0.0;
-}
-
-
-// to be implemented when we do regression
-float calculate_direction(float currx, float curry, float prevx, float prevy) {
-    return 0.0;
-}
-
-
-/**
-*
-* Function to take the outputs from the CNN and draw them on top of the image/current frame
-*
-* @param im the image we're drawing on
-* @param num the number of detections, NOT the number of detections to draw
-* @param thresh the specified threshold from which to display
-* @param alphabet an array of images of every letter in the alphabet
-*
-* the following are parallel arrays of:
-* @param boxes the boxes we may draw around the object
-* @param probs 2d array of floats, the probability a class is the one detected
-* @param names and the name of the object
-* @param classes the full list of classifiers the network detects
-*
-*/
-void draw_detections(image im, int num, float thresh, box *boxes, float **probs, char **names, image **alphabet, int classes)
+void draw_detections(image im, int num, float thresh, box *boxes, float **probs, float **masks, char **names, image **alphabet, int classes)
 {
-    // arbitrary maxes
-    size_t MAX_OBJECTS = 50;
-    size_t MAX_OBJECT_NAME_LENGTH = 20;
-
-    // Make this a list of object names that have been drawn, allocates memory, sets to zero
-    char **drawn = calloc(sizeof(char*) * MAX_OBJECTS, 1);
-    int di = 0;
-
-    // the things we want to count, parallel arrays
-    int num_countables = 4;
-    char to_count[num_countables][MAX_OBJECT_NAME_LENGTH];
-    strcpy(to_count[0], "bicycle");
-    strcpy(to_count[1], "bus");
-    strcpy(to_count[2], "car");
-    strcpy(to_count[3], "person");
-    int num_counted[num_countables];
-    num_counted[0] = 0;
-    num_counted[1] = 0;
-    num_counted[2] = 0;
-    num_counted[3] = 0;
-
-
     int i;
-    for(i = 0; i < num; ++i) {
-        int object = max_index(probs[i], classes);
-        float prob = probs[i][object];
 
-        if(prob > thresh) {
+    for(i = 0; i < num; ++i){
+        int class = max_index(probs[i], classes);
+        float prob = probs[i][class];
+        if(prob > thresh){
+            int width = im.h * .006;
 
-            // add to list of drawn objects, print the current status of the program
-            drawn[di++] = names[object];
+            if(0){
+                width = pow(prob, 1./2.)*10+1;
+                alphabet = 0;
+            }
 
-            // printf("%s: %.0f%%. The current number of objects is: %d\n", names[object], prob * 100, di);
-
-            int offset = object * 123457 % classes;
-            float red = get_color(2, offset, classes);
-            float green = get_color(1, offset, classes);
-            float blue = get_color(0, offset, classes);
+            //printf("%d %s: %.0f%%\n", i, names[class], prob*100);
+            printf("%s: %.0f%%\n", names[class], prob*100);
+            int offset = class*123457 % classes;
+            float red = get_color(2,offset,classes);
+            float green = get_color(1,offset,classes);
+            float blue = get_color(0,offset,classes);
             float rgb[3];
+
+            //width = prob*20+2;
 
             rgb[0] = red;
             rgb[1] = green;
             rgb[2] = blue;
             box b = boxes[i];
 
-            int left = (b.x - b.w / 2.) * im.w;
-            int right = (b.x + b.w / 2.) * im.w;
-            int top = (b.y - b.h / 2.) * im.h;
-            int bot = (b.y + b.h / 2.) * im.h;
+            int left  = (b.x-b.w/2.)*im.w;
+            int right = (b.x+b.w/2.)*im.w;
+            int top   = (b.y-b.h/2.)*im.h;
+            int bot   = (b.y+b.h/2.)*im.h;
 
-            if (left < 0) left = 0;
-            if (right > im.w - 1) right = im.w - 1;
-            if (top < 0) top = 0;
-            if (bot > im.h - 1) bot = im.h - 1;
+            if(left < 0) left = 0;
+            if(right > im.w-1) right = im.w-1;
+            if(top < 0) top = 0;
+            if(bot > im.h-1) bot = im.h-1;
 
-            int width = im.h * .01;
-
-
-            // comparison to see if we need to blur something, only do so if the label is "person"
-            // if (strcmp(drawn[di - 1], "person") == 0) {
-            //     draw_box_blur(im, left, top, right, bot, width, red, green, blue);
-            // } else {
-                draw_box_width(im, left, top, right, bot, width, red, green, blue);
-                draw_box_width(im, b.x * im.w -3, b.y * im.h -3, b.x * im.w +3, b.y * im.h +3, 5, 0.5, 0.5, 0.5);
-            // }
-
-            // update how many of the objects we care about we have
-            int j;
-            for (j = 0; j < num_countables; j ++) {
-                if (strcmp(drawn[di - 1], to_count[j]) == 0) {
-                    num_counted[j] ++;
-                }
-            }
-
+            draw_box_width(im, left, top, right, bot, width, red, green, blue);
             if (alphabet) {
-                image label = get_label(alphabet, names[object], (im.h*.015)/10);
+                image label = get_label(alphabet, names[class], (im.h*.03)/10);
                 draw_label(im, top + width, left, label, rgb);
+                free_image(label);
+            }
+            if (masks){
+                image mask = float_to_image(14, 14, 1, masks[i]);
+                image resized_mask = resize_image(mask, b.w*im.w, b.h*im.h);
+                image tmask = threshold_image(resized_mask, .5);
+                embed_image(tmask, im, left, top);
+                free_image(mask);
+                free_image(resized_mask);
+                free_image(tmask);
             }
         }
     }
-
-    // constant color for counted object boxes
-    float rgb[3];
-    rgb[0] = 1.;
-    rgb[1] = 1.;
-    rgb[2] = 1.;
-    for (i = 0; i < num_countables; i ++) {
-
-        // the new label
-        char *str = malloc(strlen(to_count[i]) + 10);
-        sprintf(str, "%s: %d", to_count[i], num_counted[i]);
-
-        // draw the new label in a list at the top left of the screen
-        image label = get_label(alphabet, str, (im.h * .01) / 10);
-        draw_label(im, label.h * (i + 1), 0, label, rgb);
-
-        free(str);
-    }
-
-    // free everything
-    free(drawn);
-
 }
-
-
-void track(int num, float thresh, box *boxes, float **probs, int classes, float* movement, float* testsize, char** names, char **objectnames){
-  int count = 1;
-  int count2 = 0;
-  for (int i = 0; i <num; i++){
-    int object = max_index(probs[i], classes);
-    float prob = probs[i][object];
-    if (prob > thresh) {
-      movement[count]=boxes[i].x;
-      movement[count+1]=boxes[i].y;
-      testsize[count]=boxes[i].w;
-      testsize[count+1]=boxes[i].h;
-      objectnames[count] = names[object];
-      count = count+2;
-      count2++;
-
-    }
-  }
-  movement[0] = (float)(count2);
-  // printf("the number of total objects is %i\n", count);
-  // printf("the x_position of the first object is%f\n",movement[0]);
-  // printf("the y_position of the first object is%f \n", movement[1]);
-}
-
-void trackperson(int num, float thresh, box *boxes, float **probs, int classes, float* movement, float* testsize, char** names, char **objectnames){
-  int count = 1;
-  int count2 = 0;
-  for (int i = 0; i <num; i++){
-    int object = max_index(probs[i], classes);
-    float prob = probs[i][object];
-    if (prob > thresh && strcmp(names[object], "person") == 0) {
-      movement[count]=boxes[i].x;
-      movement[count+1]=boxes[i].y;
-      testsize[count]=boxes[i].w;
-      testsize[count+1]=boxes[i].h;
-      objectnames[count] = names[object];
-      count = count+2;
-      count2++;
-    }
-  }
-  movement[0] = (float)(count2);
-  // printf("the number of total objects is %i\n", count);
-  // printf("the x_position of the first object is%f\n",movement[0]);
-  // printf("the y_position of the first object is%f \n", movement[1]);
-}
-
-
-//Kyle 7/6/2017
-void draw_tracers(image im, int dots, float *xcoords, float *ycoords, int lines, float *xlinecoords, float *ylinecoords) {
-    int i;
-    for (i = 0; i < dots; i ++) {
-        // always does pure red for now
-        draw_box_width(im, (int) (xcoords[i] * im.w) - 5, (int) (ycoords[i] * im.h) - 5, (int) (xcoords[i] * im.w) + 5,
-                       (int) (ycoords[i] * im.h) + 5, 5, 0.8, 0.8, 0.8);
-    }
-    for (i = 0; i < lines-1; i ++) {
-        // always does blue for now
-        draw_line(im, (int) (xlinecoords[i] * im.w), (int) (ylinecoords[i] * im.h), (int) (xlinecoords[i + 1] * im.w),
-                  (int) (ylinecoords[i + 1] * im.h), .1, .1, 1.);
-    }
-    printf("drawing \n");
-}
-
-
-
-float prediction(float* xcoords, int num){
-  float ret = 0.0;
-  float x;
-  float y;
-  for (int i = fmax(num - 7, 0); i < num-1; i++){
-    x = 1.0;
-    y = 1.0;
-    for (int j = fmax(num-7, 0); j < num-1; j++){
-      if (i != j){
-          x = x*(xcoords[num-1]-xcoords[j]);
-          y = y*(xcoords[i] - xcoords[j]);
-      }
-    }
-    ret = ret + x/y*xcoords[i+1];
-  }
-  return ret;
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 void transpose_image(image im)
 {
@@ -789,7 +502,7 @@ void show_image_cv(image p, const char *name, IplImage *disp)
     sprintf(buff, "%s", name);
 
     int step = disp->widthStep;
-    cvNamedWindow(buff, CV_WINDOW_NORMAL);
+    cvNamedWindow(buff, CV_WINDOW_NORMAL); 
     //cvMoveWindow(buff, 100*(windows%10) + 200*(windows/10), 100*(windows%10));
     ++windows;
     for(y = 0; y < p.h; ++y){
@@ -934,28 +647,6 @@ void save_image_jpg(image p, const char *name)
     cvReleaseImage(&disp);
     free_image(copy);
 }
-
-void save_video(image p, CvVideoWriter *mVideoWriter)
-{
-    image copy = copy_image(p);
-    if(p.c == 3) rgbgr_image(copy);
-    int x,y,k;
-
-    IplImage *disp = cvCreateImage(cvSize(p.w,p.h), IPL_DEPTH_8U, p.c);
-    int step = disp->widthStep;
-    for(y = 0; y < p.h; ++y){
-        for(x = 0; x < p.w; ++x){
-            for(k= 0; k < p.c; ++k){
-                disp->imageData[y*step + x*p.c + k] = (unsigned char)(get_pixel(copy,x,y,k)*255);
-            }
-        }
-    }
-    cvWriteFrame(mVideoWriter,disp);
-    cvReleaseImage(&disp);
-    free_image(copy);
-}
-
-
 #endif
 
 void save_image_png(image im, const char *name)
@@ -1056,7 +747,7 @@ void place_image(image im, int w, int h, int dx, int dy, image canvas)
 
 image center_crop_image(image im, int w, int h)
 {
-    int m = (im.w < im.h) ? im.w : im.h;
+    int m = (im.w < im.h) ? im.w : im.h;   
     image c = crop_image(im, (im.w - m) / 2, (im.h - m)/2, m, m);
     image r = resize_image(c, w, h);
     free_image(c);
@@ -1218,7 +909,7 @@ void letterbox_image_into(image im, int w, int h, image boxed)
         new_w = (im.w * h)/im.h;
     }
     image resized = resize_image(im, new_w, new_h);
-    embed_image(resized, boxed, (w-new_w)/2, (h-new_h)/2);
+    embed_image(resized, boxed, (w-new_w)/2, (h-new_h)/2); 
     free_image(resized);
 }
 
@@ -1238,7 +929,7 @@ image letterbox_image(image im, int w, int h)
     fill_image(boxed, .5);
     //int i;
     //for(i = 0; i < boxed.w*boxed.h*boxed.c; ++i) boxed.data[i] = 0;
-    embed_image(resized, boxed, (w-new_w)/2, (h-new_h)/2);
+    embed_image(resized, boxed, (w-new_w)/2, (h-new_h)/2); 
     free_image(resized);
     return boxed;
 }
@@ -1283,14 +974,6 @@ image random_crop_image(image im, int w, int h)
     return crop;
 }
 
-
-image random_augment_image(image im, float angle, float aspect, int low, int high, int w, int h)
-{
-    augment_args a = random_augment_args(im, angle, aspect, low, high, w, h);
-    image crop = rotate_crop_image(im, a.rad, a.scale, a.w, a.h, a.dx, a.dy, a.aspect);
-    return crop;
-}
-
 augment_args random_augment_args(image im, float angle, float aspect, int low, int high, int w, int h)
 {
     augment_args a = {0};
@@ -1303,8 +986,8 @@ augment_args random_augment_args(image im, float angle, float aspect, int low, i
 
     float dx = (im.w*scale/aspect - w) / 2.;
     float dy = (im.h*scale - w) / 2.;
-    if(dx < 0) dx = 0;
-    if(dy < 0) dy = 0;
+    //if(dx < 0) dx = 0;
+    //if(dy < 0) dy = 0;
     dx = rand_uniform(-dx, dx);
     dy = rand_uniform(-dy, dy);
 
@@ -1316,6 +999,13 @@ augment_args random_augment_args(image im, float angle, float aspect, int low, i
     a.dy = dy;
     a.aspect = aspect;
     return a;
+}
+
+image random_augment_image(image im, float angle, float aspect, int low, int high, int w, int h)
+{
+    augment_args a = random_augment_args(im, angle, aspect, low, high, w, h);
+    image crop = rotate_crop_image(im, a.rad, a.scale, a.w, a.h, a.dx, a.dy, a.aspect);
+    return crop;
 }
 
 float three_way_max(float a, float b, float c)
@@ -1505,7 +1195,7 @@ image blend_image(image fore, image back, float alpha)
     for(k = 0; k < fore.c; ++k){
         for(j = 0; j < fore.h; ++j){
             for(i = 0; i < fore.w; ++i){
-                float val = alpha * get_pixel(fore, i, j, k) +
+                float val = alpha * get_pixel(fore, i, j, k) + 
                     (1 - alpha)* get_pixel(back, i, j, k);
                 set_pixel(blend, i, j, k, val);
             }
@@ -1556,42 +1246,6 @@ void saturate_image(image im, float sat)
     hsv_to_rgb(im);
     constrain_image(im);
 }
-
-
-
-float compare_image(image prev, image im, float prevx, float prevy, float prevw, float prevh, float currx, float curry, float currw, float currh){
-
-  float result = 0;
-  float diff1;
-  float diff2;
-  float diff3;
-  int px = (int)(prevx * prev.w);
-  int py = (int)(prevy * prev.h);
-  int pw = (int)(prevw * prev.w);
-  int ph = (int)(prevh * prev.h);
-  int cx = (int)(currx * im.w);
-  int cy = (int)(curry * im.h);
-  int cw = (int)(currw * im.w);
-  int ch = (int)(currh * im.h);
-  image past = crop_image(prev, px, py, pw, ph);
-  image now = crop_image(im, cx, cy, cw, ch);
-  past = resize_image(past, fmin(cw, pw), fmin(ch, ph));
-  now = resize_image(now, fmin(cw, pw), fmin(ch, ph));
-  for (int i = 0; i < fmin(pw, cw); i++){
-    for (int j = 0; j < fmin(ph ,ch); j++){
-      diff1 = get_pixel(past,i,j,0) - get_pixel(now, i,j, 0);
-      diff2 = get_pixel(past,i,j,1) - get_pixel(now, i,j, 1);
-      diff3 = get_pixel(past,i,j,2) - get_pixel(now, i,j, 2);
-      result = result + diff1*diff1 + diff2*diff2 + diff3*diff3;
-    }
-  }
-  result = result/(fmin(pw,cw)*fmin(ph,ch));
-  return result;
-
-}
-
-
-
 
 void hue_image(image im, float hue)
 {
@@ -1646,32 +1300,16 @@ void saturate_exposure_image(image im, float sat, float exposure)
     constrain_image(im);
 }
 
-float bilinear_interpolate(image im, float x, float y, int c)
-{
-    int ix = (int) floorf(x);
-    int iy = (int) floorf(y);
-
-    float dx = x - ix;
-    float dy = y - iy;
-
-    float val = (1-dy) * (1-dx) * get_pixel_extend(im, ix, iy, c) +
-        dy     * (1-dx) * get_pixel_extend(im, ix, iy+1, c) +
-        (1-dy) *   dx   * get_pixel_extend(im, ix+1, iy, c) +
-        dy     *   dx   * get_pixel_extend(im, ix+1, iy+1, c);
-    return val;
-}
-
-
 image resize_image(image im, int w, int h)
 {
-    image resized = make_image(w, h, im.c);
+    image resized = make_image(w, h, im.c);   
     image part = make_image(w, im.h, im.c);
     int r, c, k;
     float w_scale = (float)(im.w - 1) / (w - 1);
     float h_scale = (float)(im.h - 1) / (h - 1);
     for(k = 0; k < im.c; ++k){
         for(r = 0; r < im.h; ++r){
-            for(c = 0; c < w; ++c) {
+            for(c = 0; c < w; ++c){
                 float val = 0;
                 if(c == w-1 || im.w == 1){
                     val = get_pixel(im, im.w-1, r, k);
@@ -1811,35 +1449,6 @@ image get_image_layer(image m, int l)
     }
     return out;
 }
-
-
-float get_pixel(image m, int x, int y, int c)
-{
-    assert(x < m.w && y < m.h && c < m.c);
-    return m.data[c*m.h*m.w + y*m.w + x];
-}
-float get_pixel_extend(image m, int x, int y, int c)
-{
-    if(x < 0) x = 0;
-    if(x >= m.w) x = m.w-1;
-    if(y < 0) y = 0;
-    if(y >= m.h) y = m.h-1;
-    if(c < 0 || c >= m.c) return 0;
-    return get_pixel(m, x, y, c);
-}
-void set_pixel(image m, int x, int y, int c, float val)
-{
-    if (x < 0 || y < 0 || c < 0 || x >= m.w || y >= m.h || c >= m.c) return;
-    assert(x < m.w && y < m.h && c < m.c);
-    m.data[c*m.h*m.w + y*m.w + x] = val;
-}
-void add_pixel(image m, int x, int y, int c, float val)
-{
-    assert(x < m.w && y < m.h && c < m.c);
-    m.data[c*m.h*m.w + y*m.w + x] += val;
-}
-
-
 void print_image(image m)
 {
     int i, j, k;
@@ -1890,7 +1499,7 @@ image collapse_images_vert(image *ims, int n)
         free_image(copy);
     }
     return filters;
-}
+} 
 
 image collapse_images_horz(image *ims, int n)
 {
@@ -1926,7 +1535,7 @@ image collapse_images_horz(image *ims, int n)
         free_image(copy);
     }
     return filters;
-}
+} 
 
 void show_image_normalized(image im, const char *name)
 {
