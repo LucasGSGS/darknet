@@ -39,6 +39,7 @@ void demo_art(char *cfgfile, char *weightfile, int cam_index)
             float s = p[idx[i]];
             if (s > score) score = s;
         }
+        score = score;
         printf("I APPRECIATE THIS ARTWORK: %10.7f%%\n", score*100);
         printf("[");
 	int upper = 30;

@@ -7,20 +7,13 @@
 #include <float.h>
 #include <limits.h>
 #include <time.h>
-#include <sys/time.h>
 
 #include "utils.h"
 
 double what_time_is_it_now()
 {
     struct timespec now;
-    #ifndef __APPLE__
-        clock_gettime(CLOCK_REALTIME, &now);
-    #else
-        struct timeval now_tv;
-        gettimeofday(&now_tv, NULL);
-        TIMEVAL_TO_TIMESPEC(&now_tv, &now);
-    #endif
+    clock_gettime(CLOCK_REALTIME, &now);
     return now.tv_sec + now.tv_nsec*1e-9;
 }
 
