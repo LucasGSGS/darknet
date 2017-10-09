@@ -18,6 +18,10 @@ submission/
 cfg/
 darknet
 .fuse*
+*.weights
+.idea
+cmake-build-debug/
+libdarknet.so
 
 # OS Generated #
 .DS_Store*
